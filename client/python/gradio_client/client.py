@@ -75,6 +75,7 @@ class Client:
         hf_token: str | None = None,
         max_workers: int = 40,
         serialize: bool | None = None,  # TODO: remove in 1.0
+        file_name: str | None = None,
         output_dir: str
         | Path = DEFAULT_TEMP_DIR,  # Maybe this can be combined with `download_files` in 1.0
         verbose: bool = True,
@@ -119,6 +120,7 @@ class Client:
         self.ssl_verify = ssl_verify
         self.space_id = None
         self.cookies: dict[str, str] = {}
+        self.file_name = file_name
         self.output_dir = (
             str(output_dir) if isinstance(output_dir, Path) else output_dir
         )
@@ -1259,16 +1261,20 @@ class Endpoint:
             verify=self.client.ssl_verify,
             follow_redirects=True,
         ) as response:
+            _file_name = Path(url_path).name
+            if self.file_name:
+                _file_name = self.file_name
+
             response.raise_for_status()
-            with open(temp_dir / Path(url_path).name, "wb") as f:
+            with open(temp_dir / _file_name, "wb") as f:
                 for chunk in response.iter_bytes(chunk_size=128 * sha1.block_size):
                     sha1.update(chunk)
                     f.write(chunk)
 
         directory = Path(self.client.output_dir) / sha1.hexdigest()
         directory.mkdir(exist_ok=True, parents=True)
-        dest = directory / Path(url_path).name
-        shutil.move(temp_dir / Path(url_path).name, dest)
+        dest = directory / _file_name
+        shutil.move(temp_dir / _file_name, dest)
         return str(dest.resolve())
 
     async def _sse_fn_v0(self, data: dict, hash_data: dict, helper: Communicator):
